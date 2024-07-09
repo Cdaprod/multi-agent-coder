@@ -1,0 +1,1424 @@
+I need ai to listen to archived police radio recordings and document the feed with organized details 
+
+---
+
+Creating an AI system to listen to archived police radio recordings and document the feed with organized details involves several steps, including speech recognition, natural language processing (NLP), and data organization. Below is a detailed guide on how to achieve this:
+
+### 1. Preparation
+
+#### Tools and Technologies
+- **Speech Recognition:** Use tools like Google Speech-to-Text, IBM Watson Speech to Text, or open-source alternatives like DeepSpeech.
+- **NLP:** Use frameworks such as spaCy, NLTK, or transformer models from Hugging Face.
+- **Storage:** MinIO for object storage.
+- **Database:** PostgreSQL or MongoDB for structured data storage.
+- **Programming Language:** Python for integrating all components.
+
+### 2. Steps to Build the System
+
+#### A. Audio Preprocessing
+1. **Load Audio Files:**
+   ```python
+   import os
+   from pydub import AudioSegment
+
+   def load_audio_files(directory):
+       audio_files = []
+       for filename in os.listdir(directory):
+           if filename.endswith(".mp3") or filename.endswith(".wav"):
+               audio_files.append(AudioSegment.from_file(os.path.join(directory, filename)))
+       return audio_files
+   ```
+
+2. **Audio Segmentation:**
+   - Segment the audio into smaller chunks for easier processing.
+   ```python
+   def segment_audio(audio, segment_length_ms=60000):
+       segments = []
+       for i in range(0, len(audio), segment_length_ms):
+           segments.append(audio[i:i + segment_length_ms])
+       return segments
+   ```
+
+#### B. Speech Recognition
+1. **Transcribe Audio:**
+   - Use Google Speech-to-Text API or another service.
+   ```python
+   from google.cloud import speech_v1 as speech
+
+   def transcribe_audio(audio_segment):
+       client = speech.SpeechClient()
+       content = audio_segment.raw_data
+       audio = speech.RecognitionAudio(content=content)
+       config = speech.RecognitionConfig(
+           encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+           sample_rate_hertz=16000,
+           language_code="en-US"
+       )
+       response = client.recognize(config=config, audio=audio)
+       return " ".join([result.alternatives[0].transcript for result in response.results])
+   ```
+
+#### C. Natural Language Processing
+1. **Entity Recognition:**
+   - Extract important details such as locations, names, and actions.
+   ```python
+   import spacy
+
+   nlp = spacy.load("en_core_web_sm")
+
+   def extract_entities(transcription):
+       doc = nlp(transcription)
+       entities = [(entity.text, entity.label_) for entity in doc.ents]
+       return entities
+   ```
+
+2. **Summarization:**
+   - Summarize the transcribed text to create concise reports.
+   ```python
+   from transformers import pipeline
+
+   summarizer = pipeline("summarization")
+
+   def summarize_text(transcription):
+       summary = summarizer(transcription, max_length=150, min_length=30, do_sample=False)
+       return summary[0]['summary_text']
+   ```
+
+#### D. Data Organization
+1. **Store Data:**
+   - Save the transcription, entities, and summary to a database.
+   ```python
+   import psycopg2
+
+   def store_to_db(transcription, entities, summary):
+       connection = psycopg2.connect(user="yourusername", password="yourpassword", host="127.0.0.1", port="5432", database="police_records")
+       cursor = connection.cursor()
+       cursor.execute("INSERT INTO records (transcription, entities, summary) VALUES (%s, %s, %s)", (transcription, str(entities), summary))
+       connection.commit()
+       cursor.close()
+       connection.close()
+   ```
+
+### 3. Workflow Integration
+1. **Processing Pipeline:**
+   - Combine all steps into a single workflow.
+   ```python
+   def process_audio_files(directory):
+       audio_files = load_audio_files(directory)
+       for audio in audio_files:
+           segments = segment_audio(audio)
+           for segment in segments:
+               transcription = transcribe_audio(segment)
+               entities = extract_entities(transcription)
+               summary = summarize_text(transcription)
+               store_to_db(transcription, entities, summary)
+   ```
+
+### 4. Deployment and Automation
+1. **Automate with a Script:**
+   - Set up a script to run the processing pipeline periodically.
+   ```bash
+   #!/bin/bash
+   python process_audio_files.py /path/to/audio/files
+   ```
+
+2. **Deploy on a Server:**
+   - Use a cloud server to run the script and store data.
+   - Schedule the script using cron jobs for periodic execution.
+
+### 5. Monitoring and Maintenance
+1. **Logging:**
+   - Implement logging to track processing status and errors.
+   ```python
+   import logging
+
+   logging.basicConfig(filename='processing.log', level=logging.INFO)
+
+   def log_message(message):
+       logging.info(message)
+   ```
+
+2. **Regular Updates:**
+   - Update the models and scripts as needed to maintain accuracy and performance.
+
+By following these steps, you can create a robust system that listens to archived police radio recordings, transcribes them, extracts and organizes relevant information, and stores the data for easy access and analysis.
+
+---
+
+With LangChain api langchain 0.2.6
+
+https://api.python.langchain.com/en/latest/langchain_api_reference.html#
+
+---
+
+To integrate LangChain API (version 0.2.6) for processing and documenting police radio recordings, we'll use LangChain for advanced NLP tasks such as transcription analysis, entity recognition, and summarization. Here's how you can achieve this:
+
+### 1. Preparation
+
+#### Tools and Technologies
+- **LangChain:** For advanced NLP tasks.
+- **Speech Recognition:** Google Speech-to-Text or DeepSpeech.
+- **Storage:** MinIO for object storage.
+- **Database:** PostgreSQL or MongoDB for structured data storage.
+- **Programming Language:** Python for integrating all components.
+
+### 2. Steps to Build the System
+
+#### A. Audio Preprocessing
+
+1. **Load Audio Files:**
+   ```python
+   import os
+   from pydub import AudioSegment
+
+   def load_audio_files(directory):
+       audio_files = []
+       for filename in os.listdir(directory):
+           if filename.endswith(".mp3") or filename.endswith(".wav"):
+               audio_files.append(AudioSegment.from_file(os.path.join(directory, filename)))
+       return audio_files
+   ```
+
+2. **Audio Segmentation:**
+   ```python
+   def segment_audio(audio, segment_length_ms=60000):
+       segments = []
+       for i in range(0, len(audio), segment_length_ms):
+           segments.append(audio[i:i + segment_length_ms])
+       return segments
+   ```
+
+#### B. Speech Recognition
+
+1. **Transcribe Audio:**
+   ```python
+   from google.cloud import speech_v1 as speech
+
+   def transcribe_audio(audio_segment):
+       client = speech.SpeechClient()
+       content = audio_segment.raw_data
+       audio = speech.RecognitionAudio(content=content)
+       config = speech.RecognitionConfig(
+           encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+           sample_rate_hertz=16000,
+           language_code="en-US"
+       )
+       response = client.recognize(config=config, audio=audio)
+       return " ".join([result.alternatives[0].transcript for result in response.results])
+   ```
+
+#### C. Natural Language Processing with LangChain
+
+1. **Setup LangChain:**
+   - Install LangChain.
+   ```bash
+   pip install langchain
+   ```
+
+2. **Use LangChain for NLP Tasks:**
+   ```python
+   from langchain import Pipeline, TextCleaner, EntityRecognizer, Summarizer
+
+   def process_transcription(transcription):
+       # Create a LangChain pipeline
+       pipeline = Pipeline([
+           TextCleaner(),
+           EntityRecognizer(),
+           Summarizer()
+       ])
+       
+       # Process the transcription
+       cleaned_text = pipeline.clean_text(transcription)
+       entities = pipeline.recognize_entities(cleaned_text)
+       summary = pipeline.summarize(cleaned_text)
+       
+       return cleaned_text, entities, summary
+   ```
+
+#### D. Data Organization
+
+1. **Store Data:**
+   ```python
+   import psycopg2
+
+   def store_to_db(transcription, cleaned_text, entities, summary):
+       connection = psycopg2.connect(user="yourusername", password="yourpassword", host="127.0.0.1", port="5432", database="police_records")
+       cursor = connection.cursor()
+       cursor.execute("INSERT INTO records (transcription, cleaned_text, entities, summary) VALUES (%s, %s, %s, %s)", 
+                      (transcription, cleaned_text, str(entities), summary))
+       connection.commit()
+       cursor.close()
+       connection.close()
+   ```
+
+### 3. Workflow Integration
+
+1. **Processing Pipeline:**
+   ```python
+   def process_audio_files(directory):
+       audio_files = load_audio_files(directory)
+       for audio in audio_files:
+           segments = segment_audio(audio)
+           for segment in segments:
+               transcription = transcribe_audio(segment)
+               cleaned_text, entities, summary = process_transcription(transcription)
+               store_to_db(transcription, cleaned_text, entities, summary)
+   ```
+
+### 4. Deployment and Automation
+
+1. **Automate with a Script:**
+   ```bash
+   #!/bin/bash
+   python process_audio_files.py /path/to/audio/files
+   ```
+
+2. **Deploy on a Server:**
+   - Use a cloud server to run the script and store data.
+   - Schedule the script using cron jobs for periodic execution.
+
+### 5. Monitoring and Maintenance
+
+1. **Logging:**
+   ```python
+   import logging
+
+   logging.basicConfig(filename='processing.log', level=logging.INFO)
+
+   def log_message(message):
+       logging.info(message)
+   ```
+
+2. **Regular Updates:**
+   - Update the models and scripts as needed to maintain accuracy and performance.
+
+By integrating LangChain, you can leverage advanced NLP capabilities to process and document police radio recordings effectively. The above steps provide a comprehensive guide to building this system.
+
+---
+
+Search web for LCEL LangChain expression language and Langsmith 
+
+---
+
+### Integrating LangChain Expression Language (LCEL) and LangSmith for Processing Police Radio Recordings
+
+To build a system that processes archived police radio recordings and documents them with organized details using LangChain Expression Language (LCEL) and LangSmith, follow these steps:
+
+#### Overview of LCEL and LangSmith
+**LCEL** is a declarative way to compose chains in LangChain, enabling easy creation of complex workflows with support for synchronous, asynchronous, batch, and streaming operations. This approach simplifies building and deploying NLP models by providing a unified interface for chaining operations.
+
+**LangSmith** is a platform that supports debugging, testing, evaluating, and monitoring LangChain applications. It offers seamless integration with LCEL, allowing for detailed tracing and evaluation of model performance.
+
+### Steps to Build the System
+
+#### 1. Audio Preprocessing
+Load and segment audio files using `pydub` to prepare them for transcription:
+```python
+from pydub import AudioSegment
+import os
+
+def load_audio_files(directory):
+    audio_files = []
+    for filename in os.listdir(directory):
+        if filename.endswith(".mp3") or filename.endswith(".wav"):
+            audio_files.append(AudioSegment.from_file(os.path.join(directory, filename)))
+    return audio_files
+
+def segment_audio(audio, segment_length_ms=60000):
+    segments = []
+    for i in range(0, len(audio), segment_length_ms):
+        segments.append(audio[i:i + segment_length_ms])
+    return segments
+```
+
+#### 2. Speech Recognition
+Transcribe the audio segments using Google Speech-to-Text:
+```python
+from google.cloud import speech_v1 as speech
+
+def transcribe_audio(audio_segment):
+    client = speech.SpeechClient()
+    content = audio_segment.raw_data
+    audio = speech.RecognitionAudio(content=content)
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=16000,
+        language_code="en-US"
+    )
+    response = client.recognize(config=config, audio=audio)
+    return " ".join([result.alternatives[0].transcript for result in response.results])
+```
+
+#### 3. Natural Language Processing with LCEL
+Set up LangChain and use LCEL for NLP tasks such as cleaning text, recognizing entities, and summarizing content:
+```python
+from langchain import Pipeline, TextCleaner, EntityRecognizer, Summarizer
+
+def process_transcription(transcription):
+    pipeline = Pipeline([
+        TextCleaner(),
+        EntityRecognizer(),
+        Summarizer()
+    ])
+    cleaned_text = pipeline.clean_text(transcription)
+    entities = pipeline.recognize_entities(cleaned_text)
+    summary = pipeline.summarize(cleaned_text)
+    return cleaned_text, entities, summary
+```
+
+#### 4. Data Organization
+Store the processed data in a database like PostgreSQL:
+```python
+import psycopg2
+
+def store_to_db(transcription, cleaned_text, entities, summary):
+    connection = psycopg2.connect(user="yourusername", password="yourpassword", host="127.0.0.1", port="5432", database="police_records")
+    cursor = connection.cursor()
+    cursor.execute("INSERT INTO records (transcription, cleaned_text, entities, summary) VALUES (%s, %s, %s, %s)", 
+                   (transcription, cleaned_text, str(entities), summary))
+    connection.commit()
+    cursor.close()
+    connection.close()
+```
+
+#### 5. Workflow Integration
+Combine all steps into a single processing pipeline:
+```python
+def process_audio_files(directory):
+    audio_files = load_audio_files(directory)
+    for audio in audio_files:
+        segments = segment_audio(audio)
+        for segment in segments:
+            transcription = transcribe_audio(segment)
+            cleaned_text, entities, summary = process_transcription(transcription)
+            store_to_db(transcription, cleaned_text, entities, summary)
+```
+
+#### 6. Monitoring and Evaluation with LangSmith
+LangSmith provides tools for tracing and evaluating the performance of your LCEL chains. It integrates seamlessly with LCEL to log each step and provide detailed insights into model performance and behavior.
+
+To monitor and evaluate your chains, you can use LangSmith to create datasets, configure evaluators, and run experiments to benchmark your agents and chains. This allows you to refine your models and ensure reliable performance in production environments [oai_citation:1,LangChain Expression Language](https://blog.langchain.dev/langchain-expression-language/) [oai_citation:2,LangChain Expression Language (LCEL) | ️ Langchain](https://qubitpi.github.io/langchain/docs/expression_language/) [oai_citation:3,LangSmith Walkthrough | ️ Langchain](https://js.langchain.com/v0.1/docs/guides/langsmith_evaluation/) [oai_citation:4,RAG Evaluations | ️️ LangSmith](https://docs.smith.langchain.com/tutorials/Developers/rag).
+
+### Conclusion
+By leveraging LCEL and LangSmith, you can efficiently build, deploy, and monitor a system that processes and documents police radio recordings, ensuring a streamlined workflow from transcription to detailed analysis and storage. For more detailed documentation and examples, visit the LangChain [documentation](https://api.python.langchain.com/en/latest/langchain_api_reference.html#) and LangSmith [docs](https://smith.langchain.com).
+
+---
+
+Search more online about writing code using LCEL and generate the idiomatic code with LangChain API and LLM agents
+
+---
+
+To write idiomatic code using LangChain Expression Language (LCEL) and leverage LLM agents, you can follow these steps to set up a simple application. This example will walk you through the process of creating a translation application, leveraging LCEL to compose and run the necessary components seamlessly.
+
+### 1. Installation and Setup
+First, install the necessary LangChain packages:
+
+```bash
+pip install langchain langchain-openai langchain-anthropic langchain-google-vertexai langchain-community langgraph
+```
+
+Set the required environment variables for tracing and API keys:
+
+```python
+import getpass
+import os
+
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+os.environ["LANGCHAIN_API_KEY"] = getpass.getpass("Enter your LangChain API key: ")
+os.environ["OPENAI_API_KEY"] = getpass.getpass("Enter your OpenAI API key: ")
+os.environ["ANTHROPIC_API_KEY"] = getpass.getpass("Enter your Anthropic API key: ")
+os.environ["GOOGLE_API_KEY"] = getpass.getpass("Enter your Google API key: ")
+```
+
+### 2. Using Language Models
+Instantiate the models you will use. Here we show examples for OpenAI, Anthropic, and Google Vertex AI:
+
+```python
+from langchain_openai import ChatOpenAI
+from langchain_anthropic import ChatAnthropic
+from langchain_google_vertexai import ChatVertexAI
+
+openai_model = ChatOpenAI(model="gpt-4")
+anthropic_model = ChatAnthropic(model="claude-3-sonnet-20240229")
+vertex_ai_model = ChatVertexAI(model="gemini-1.5-pro")
+```
+
+### 3. Creating a Simple Chain with LCEL
+Define a simple translation chain using LCEL. This chain will use a model to translate text from English to another language:
+
+```python
+from langchain.prompts import ChatPromptTemplate
+from langchain import Pipeline
+
+# Define the prompt template
+prompt_template = ChatPromptTemplate.from_template("Translate the following from English to Italian: {text}")
+
+# Create the chain
+translation_chain = prompt_template | openai_model
+
+# Run the chain
+result = translation_chain.invoke({"text": "Hello, how are you?"})
+print(result)
+```
+
+### 4. Adding Complexity with LCEL
+You can enhance the chain by adding more steps, such as additional processing or using different models in parallel:
+
+```python
+from langchain import Parallel, Sequential
+
+# Define parallel chains
+chain1 = prompt_template | openai_model
+chain2 = prompt_template | anthropic_model
+
+# Run chains in parallel
+parallel_chain = Parallel([chain1, chain2])
+
+# Collect results
+results = parallel_chain.invoke({"text": "Hello, how are you?"})
+print(results)
+```
+
+### 5. Monitoring and Debugging with LangSmith
+Integrate LangSmith to trace and debug the chains. This is essential for understanding the performance and behavior of complex chains:
+
+```python
+# Ensure LangSmith tracing is enabled
+os.environ["LANGCHAIN_TRACING_V2"] = "true"
+
+# Create a more complex chain with intermediate steps and tracing
+complex_chain = Sequential([prompt_template, openai_model, anthropic_model])
+result = complex_chain.invoke({"text": "Good morning, everyone!"})
+
+# The trace for this run will be available in LangSmith
+print(result)
+```
+
+### 6. Deploying with LangServe
+Deploy your LCEL chains using LangServe to create a production-ready API:
+
+```bash
+pip install langserve
+```
+
+Define your LangServe configuration and deploy the API:
+
+```python
+from langserve import serve
+
+serve(translation_chain)
+```
+
+By following these steps, you can build, monitor, and deploy complex LLM applications using LangChain's LCEL. For more detailed examples and further reading, you can refer to the [LangChain Cookbook](https://qubitpi.github.io/langchain/docs/expression_language/cookbook/) and the [LangSmith documentation](https://docs.smith.langchain.com).
+
+This approach ensures that your applications are scalable, maintainable, and easy to debug, making full use of LangChain's powerful capabilities.
+
+---
+
+Now that can analyze and extract the text content from the audio web files and into indexed document objects over an RST API 
+
+---
+
+To analyze and extract text content from audio files and make it accessible via an indexed document object over a REST API using LangChain and LCEL, follow these steps:
+
+### 1. Audio Preprocessing and Transcription
+
+First, preprocess and transcribe the audio files using Google Speech-to-Text.
+
+#### Loading and Segmenting Audio Files
+
+```python
+from pydub import AudioSegment
+import os
+
+def load_audio_files(directory):
+    audio_files = []
+    for filename in os.listdir(directory):
+        if filename.endswith(".mp3") or filename.endswith(".wav"):
+            audio_files.append(AudioSegment.from_file(os.path.join(directory, filename)))
+    return audio_files
+
+def segment_audio(audio, segment_length_ms=60000):
+    segments = []
+    for i in range(0, len(audio), segment_length_ms):
+        segments.append(audio[i:i + segment_length_ms])
+    return segments
+```
+
+#### Transcribing Audio
+
+```python
+from google.cloud import speech_v1 as speech
+
+def transcribe_audio(audio_segment):
+    client = speech.SpeechClient()
+    content = audio_segment.raw_data
+    audio = speech.RecognitionAudio(content=content)
+    config = speech.RecognitionConfig(
+        encoding=speech.RecognitionConfig.AudioEncoding.LINEAR16,
+        sample_rate_hertz=16000,
+        language_code="en-US"
+    )
+    response = client.recognize(config=config, audio=audio)
+    return " ".join([result.alternatives[0].transcript for result in response.results])
+```
+
+### 2. Using LangChain for NLP Tasks
+
+#### Setting Up LangChain
+
+Install the necessary packages:
+
+```bash
+pip install langchain langchain-openai langchain-anthropic langchain-google-vertexai langchain-community langgraph
+```
+
+#### Creating a Simple Chain with LCEL
+
+```python
+from langchain import Pipeline
+from langchain.prompts import ChatPromptTemplate
+from langchain_openai import ChatOpenAI
+
+# Define the prompt template
+prompt_template = ChatPromptTemplate.from_template("Translate the following from English to Italian: {text}")
+
+# Instantiate the model
+openai_model = ChatOpenAI(model="gpt-4")
+
+# Create the chain
+translation_chain = prompt_template | openai_model
+
+# Run the chain
+result = translation_chain.invoke({"text": "Hello, how are you?"})
+print(result)
+```
+
+### 3. Storing and Indexing Documents
+
+Use a database like Elasticsearch to store and index the transcribed documents.
+
+#### Setting Up Elasticsearch
+
+Install the Elasticsearch client for Python:
+
+```bash
+pip install elasticsearch
+```
+
+#### Indexing Documents
+
+```python
+from elasticsearch import Elasticsearch
+
+# Initialize the Elasticsearch client
+es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+
+# Index a document
+def index_document(index_name, doc_type, document):
+    es.index(index=index_name, doc_type=doc_type, body=document)
+
+# Example document
+document = {
+    'transcription': result,
+    'entities': entities,  # Assuming `entities` is extracted from LCEL
+    'summary': summary     # Assuming `summary` is extracted from LCEL
+}
+
+# Index the document
+index_document('police_records', 'record', document)
+```
+
+### 4. Exposing Data via a REST API
+
+Use Flask to create a REST API to access the indexed documents.
+
+#### Setting Up Flask
+
+Install Flask:
+
+```bash
+pip install Flask
+```
+
+#### Creating the REST API
+
+```python
+from flask import Flask, request, jsonify
+from elasticsearch import Elasticsearch
+
+app = Flask(__name__)
+es = Elasticsearch([{'host': 'localhost', 'port': 9200}])
+
+@app.route('/search', methods=['GET'])
+def search_documents():
+    query = request.args.get('query')
+    res = es.search(index='police_records', body={'query': {'match': {'transcription': query}}})
+    return jsonify(res['hits']['hits'])
+
+if __name__ == '__main__':
+    app.run(debug=True)
+```
+
+### Summary
+
+1. **Preprocess and transcribe** audio files using Google Speech-to-Text.
+2. **Use LangChain (LCEL)** for advanced NLP tasks such as translation and summarization.
+3. **Store and index** the transcribed text in Elasticsearch.
+4. **Expose the indexed documents** through a Flask-based REST API.
+
+By following these steps, you can effectively process and expose police radio recordings as searchable and indexed document objects. This approach leverages LangChain for NLP, Elasticsearch for indexing, and Flask for creating the REST API.
+
+---
+
+Search web for best way to load video and audio streamed files into LangChain 
+
+---
+
+To load and process audio and video streamed files into LangChain, you can follow several approaches based on the tools and integrations available. Here's a comprehensive guide on how to handle audio and video files using LangChain:
+
+### 1. Transcribing Audio and Video Files
+
+#### Using AssemblyAI
+AssemblyAI provides a seamless integration with LangChain for transcribing audio files into text. Here’s how to use it:
+
+1. **Install the required packages:**
+    ```bash
+    pip install langchain assemblyai
+    ```
+
+2. **Set up environment variables:**
+    ```bash
+    export ASSEMBLYAI_API_KEY=<YOUR_ASSEMBLYAI_API_KEY>
+    ```
+
+3. **Load and transcribe audio files:**
+    ```python
+    from langchain.document_loaders import AssemblyAIAudioTranscriptLoader
+
+    audio_file = "https://storage.googleapis.com/aai-docs-samples/sports_injuries.mp3"
+    loader = AssemblyAIAudioTranscriptLoader(file_path=audio_file)
+    docs = loader.load()
+
+    print(docs[0].page_content)
+    ```
+
+### 2. Processing with LangChain
+After transcribing the audio or video files, you can use LangChain’s capabilities to analyze the text.
+
+#### Example: Q&A Chain
+1. **Install OpenAI and set API key:**
+    ```bash
+    pip install openai
+    export OPENAI_API_KEY=<YOUR_OPENAI_API_KEY>
+    ```
+
+2. **Create a Q&A chain:**
+    ```python
+    from langchain.llms import OpenAI
+    from langchain.chains.question_answering import load_qa_chain
+
+    llm = OpenAI()
+    qa_chain = load_qa_chain(llm, chain_type="stuff")
+
+    answer = qa_chain.run(input_documents=docs, question="What is a runner's knee?")
+    print(answer)
+    ```
+
+### 3. Handling Video Files
+For video files, you can convert the video to base64 and process it similarly. Here’s an example using Google Vertex AI:
+
+1. **Install the required packages:**
+    ```bash
+    pip install @langchain/google-vertexai @langchain/core
+    ```
+
+2. **Convert video to base64 and create a chain:**
+    ```python
+    import fs from "fs"
+    from langchain import Pipeline
+    from langchain.prompts import ChatPromptTemplate
+    from langchain.google_vertexai import ChatVertexAI
+
+    def file_to_base64(file_path):
+        return fs.readFileSync(file_path, "base64")
+
+    video_file = "path/to/video.mp4"
+    video_base64 = file_to_base64(video_file)
+
+    tool = z.object({"tasks": z.array(z.string()).describe("A list of tasks.")})
+    model = ChatVertexAI(model="gemini-1.5-pro-preview-0409", temperature=0).withStructuredOutput(tool, name="tasks_list_tool")
+    prompt = ChatPromptTemplate.fromMessages([MessagesPlaceholder("video")])
+    chain = prompt.pipe(model)
+
+    response = chain.invoke({"video": {"type": "media", "mimeType": "video/mp4", "data": video_base64}})
+    print(response)
+    ```
+
+### 4. Embedding and Querying with ChromaDB
+You can use ChromaDB to embed and query the transcribed texts.
+
+1. **Create embeddings and load into ChromaDB:**
+    ```python
+    from langchain.vectorstores import Chroma
+    from langchain.embeddings import HuggingFaceEmbeddings
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000)
+    texts = text_splitter.split_documents(docs)
+
+    embedder = HuggingFaceEmbeddings(model_name="sentence-transformers/all-mpnet-base-v2")
+    db = Chroma.from_documents(texts, embedder)
+    ```
+
+2. **Create a Q&A chain with ChromaDB:**
+    ```python
+    from langchain.chains import RetrievalQA
+    from langchain.llms import ChatOpenAI
+
+    llm = ChatOpenAI(model_name="gpt-3.5-turbo")
+    qa_chain = RetrievalQA.from_chain_type(llm, retriever=db.as_retriever(search_type="mmr", search_kwargs={'fetch_k': 3}), return_source_documents=True)
+
+    result = qa_chain({"query": "What is a runner's knee?"})
+    print(result)
+    ```
+
+### Conclusion
+By following these steps, you can effectively load, transcribe, process, and query audio and video files using LangChain and its integrations with tools like AssemblyAI and ChromaDB. This approach allows you to build powerful applications that handle multimedia content seamlessly.
+
+For more detailed guides and code examples, you can refer to the official [LangChain documentation](https://js.langchain.com) and [AssemblyAI integration guide](https://www.assemblyai.com).
+
+---
+
+To include both Claude and GPT-4 models in your project, here's a comprehensive overview and integration guide:
+
+### Claude by Anthropic
+
+**Claude** is a family of AI models developed by Anthropic, designed for various tasks ranging from simple text generation to complex reasoning and code generation. The latest models include:
+
+1. **Claude 3.5 Sonnet**: This is the most advanced model, known for its exceptional performance on complex tasks. It supports a 200K token context window and excels in tasks such as research review, brainstorming, hypothesis generation, and advanced analysis of charts and graphs. It also has strong capabilities in coding and multilingual processing.
+
+2. **Claude 3 Opus**: This model is powerful and reliable, designed for highly complex tasks such as interactive coding, task automation, and detailed financial analysis. It also supports a 200K token context window.
+
+3. **Claude 3 Haiku**: The fastest model in the Claude 3 family, optimized for near-instant responsiveness, making it ideal for tasks requiring rapid interactions like live support chat and content moderation.
+
+Claude models are designed to be secure and resistant to jailbreaks, making them suitable for enterprise use with high demands on safety and reliability [oai_citation:1,Meet Claude \ Anthropic](https://www.anthropic.com/claude) [oai_citation:2,Claude 2 \ Anthropic](https://www.anthropic.com/news/claude-2) [oai_citation:3,Introducing the next generation of Claude \ Anthropic](https://www.anthropic.com/news/claude-3-family) [oai_citation:4,Models - Anthropic](https://docs.anthropic.com/en/docs/about-claude/models) [oai_citation:5,Intro to Claude - Anthropic](https://docs.anthropic.com/en/docs/intro-to-claude) [oai_citation:6,Anthropic Claude - Models in Amazon Bedrock - AWS](https://aws.amazon.com/bedrock/claude/).
+
+### GPT-4 by OpenAI
+
+**GPT-4** is a highly capable model developed by OpenAI, known for its superior performance in natural language understanding and generation. Key features include:
+
+1. **Advanced Language Understanding**: GPT-4 can handle complex queries and generate human-like text across various contexts, making it ideal for conversational agents, content generation, and more.
+
+2. **Code Generation and Debugging**: Similar to Claude, GPT-4 is proficient in generating and debugging code, providing detailed explanations and code snippets as needed.
+
+3. **Multimodal Capabilities**: GPT-4 can process and generate text based on images and other non-text inputs, enhancing its versatility in various applications.
+
+### Integration Guide
+
+#### Setting Up Environment
+
+1. **Install necessary packages**:
+    ```bash
+    pip install langchain openai anthropic
+    ```
+
+2. **Set up API keys**:
+    ```python
+    import os
+    os.environ["OPENAI_API_KEY"] = "your_openai_api_key"
+    os.environ["ANTHROPIC_API_KEY"] = "your_anthropic_api_key"
+    ```
+
+#### Using Claude and GPT-4 in LangChain
+
+1. **Example: Text Generation with GPT-4**:
+    ```python
+    from langchain.llms import OpenAI
+
+    openai_model = OpenAI(model_name="gpt-4")
+    response = openai_model.generate("Explain the theory of relativity.")
+    print(response)
+    ```
+
+2. **Example: Using Claude for Complex Tasks**:
+    ```python
+    from langchain.llms import Claude
+
+    claude_model = Claude(model_name="claude-3-5-sonnet")
+    response = claude_model.generate("Summarize the latest advancements in AI safety research.")
+    print(response)
+    ```
+
+3. **Combining Models for Enhanced Workflow**:
+    ```python
+    from langchain.chains import SequentialChain
+
+    text_input = "Analyze the impact of climate change on global agriculture."
+
+    openai_chain = SequentialChain(llm=openai_model, prompt="Generate an overview on: {text}")
+    claude_chain = SequentialChain(llm=claude_model, prompt="Provide detailed insights on: {text}")
+
+    openai_response = openai_chain.run(text_input)
+    claude_response = claude_chain.run(openai_response)
+    
+    print(f"OpenAI GPT-4 Response: {openai_response}")
+    print(f"Claude Response: {claude_response}")
+    ```
+
+### Conclusion
+
+By leveraging both Claude and GPT-4 models, you can build robust AI applications capable of handling a wide range of tasks, from simple text generation to complex analysis and code generation. These models complement each other well, providing flexibility and high performance for diverse use cases. For more details on Claude, visit [Anthropic's website](https://www.anthropic.com) and for GPT-4, refer to [OpenAI's documentation](https://openai.com).
+
+---
+
+Search the web for custom agent LLM tool use with this and autogen
+
+---
+
+To integrate custom agents using LangChain and AutoGen with Claude and GPT-4 models, you can follow these detailed steps.
+
+### Setting Up the Environment
+
+1. **Install Required Packages**:
+    ```bash
+    pip install langchain openai anthropic autogen
+    ```
+
+2. **Set Up API Keys**:
+    ```python
+    import os
+    os.environ["OPENAI_API_KEY"] = "your_openai_api_key"
+    os.environ["ANTHROPIC_API_KEY"] = "your_anthropic_api_key"
+    ```
+
+### Using LangChain with Custom Tools
+
+**LangChain** allows you to create custom tools that can be used by LLM agents. Here's how you can set up a custom tool and bind it to an LLM agent:
+
+1. **Define a Custom Tool**:
+    ```python
+    from typing import Optional
+    from langchain_core.tools import BaseTool
+    from math import sqrt, cos, sin
+
+    class PythagorasTool(BaseTool):
+        name = "Hypotenuse calculator"
+        description = (
+            "Calculate the hypotenuse given two sides of a triangle and/or an angle."
+            " You must provide at least two of the following parameters: ['adjacent_side', 'opposite_side', 'angle']."
+        )
+
+        def _run(
+            self,
+            adjacent_side: Optional[float] = None,
+            opposite_side: Optional[float] = None,
+            angle: Optional[float] = None
+        ):
+            if adjacent_side and opposite_side:
+                return sqrt(adjacent_side**2 + opposite_side**2)
+            elif adjacent_side and angle:
+                return adjacent_side / cos(angle)
+            elif opposite_side and angle:
+                return opposite_side / sin(angle)
+            else:
+                return "Need two or more parameters."
+
+    tools = [PythagorasTool()]
+    ```
+
+2. **Create the Agent**:
+    ```python
+    from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+    from langchain.agents import AgentExecutor, format_to_openai_tool_messages, OpenAIToolsAgentOutputParser
+
+    prompt = ChatPromptTemplate.from_messages([
+        ("system", "You are a powerful assistant, but don't know current events."),
+        ("user", "{input}"),
+        MessagesPlaceholder(variable_name="agent_scratchpad"),
+    ])
+
+    llm_with_tools = llm.bind_tools(tools)
+
+    agent = {
+        "input": lambda x: x["input"],
+        "agent_scratchpad": lambda x: format_to_openai_tool_messages(x["intermediate_steps"]),
+    } | prompt | llm_with_tools | OpenAIToolsAgentOutputParser()
+
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+    ```
+
+3. **Execute the Agent**:
+    ```python
+    result = agent_executor.invoke({"input": "If I have a triangle with sides of length 3 and 4, what is the hypotenuse?"})
+    print(result)
+    ```
+
+### Using AutoGen with Multiple LLMs
+
+**AutoGen** enables multi-agent conversation frameworks that can incorporate tools and human interactions.
+
+1. **Configure LLMs**:
+    ```python
+    import autogen
+
+    config_list = autogen.config_list_from_json(env_or_file="OAI_CONFIG_LIST")
+    assistant = autogen.AssistantAgent(name="assistant", llm_config={"config_list": config_list})
+    ```
+
+2. **Register Tools**:
+    ```python
+    from pydantic import BaseModel, Field
+
+    class CalculatorInput(BaseModel):
+        a: int
+        b: int
+        operator: str
+
+    def calculator(input: CalculatorInput) -> int:
+        if input.operator == "+":
+            return input.a + input.b
+        elif input.operator == "-":
+            return input.a - input.b
+        elif input.operator == "*":
+            return input.a * input.b
+        elif input.operator == "/":
+            return input.a // input.b
+        else:
+            raise ValueError("Invalid operator")
+
+    assistant.register_for_llm(name="calculator", description="A simple calculator tool")(calculator)
+    ```
+
+3. **Execute a Query**:
+    ```python
+    result = assistant.invoke({"input": "Calculate 10 + 20 using the calculator tool."})
+    print(result)
+    ```
+
+### Conclusion
+
+By combining LangChain and AutoGen, you can create powerful and flexible agents that utilize custom tools and multiple LLMs like Claude and GPT-4. This setup enables robust and scalable AI applications tailored to complex use cases.
+
+For more details and advanced configurations, you can refer to the [LangChain documentation](https://python.langchain.com) and [AutoGen documentation](https://microsoft.github.io/autogen) [oai_citation:1,LLM Configuration | AutoGen](https://microsoft.github.io/autogen/docs/topics/llm_configuration/) [oai_citation:2,Building Custom Tools for LLM Agents | Pinecone](https://www.pinecone.io/learn/series/langchain/langchain-tools/) [oai_citation:3,Custom LLM Agent | ️ Langchain](https://js.langchain.com/v0.1/docs/modules/agents/how_to/custom_llm_agent/) [oai_citation:4,Custom agent | ️ LangChain](https://python.langchain.com/v0.1/docs/modules/agents/how_to/custom_agent/) [oai_citation:5,Tool Use | AutoGen](https://microsoft.github.io/autogen/docs/tutorial/tool-use/).
+
+---
+
+I’ve got a new concept to share with you it’s RAG (Retrieval Augmented Generation) from scratch in 10 lines of code. 
+
+model = SentenceTransformer ("Alibaba-NLP/gte-base-en-v1.5")
+paragraphs = doc.split('\n\n') # "Your Docs, text, PDF etc."
+docs_embed = model. encode(paragraphs, normalize_embeddings=True)
+query = "Your query"
+query_embed = model. encode(query, normalize_embeddings=True)
+similarities = np.dot(docs_embegG
+query_embed. T)
+top_3_idx = np.argsort(similaries, axis=0)[-3:][::-1] tolistO
+most_similar_documents = [paragraphs[idx] for idx in top_3_idx]
+client = OpenAI (api_key=userdata.get ('openai'))
+response = client.chat.completions.create(messages=prompt)
+
+
+… how can we take our LangChain Autogen powerful and flexible agents that utilize custom tools and multiple LLMs to make robust and scalable ai application that stores the responses and uses the rag method to improve its functionality and results 
+
+
+---
+
+To create a powerful and flexible AI application using LangChain and AutoGen, incorporating the RAG (Retrieval Augmented Generation) method, follow these steps to build a robust and scalable solution:
+
+### Step 1: Setup Environment
+
+Ensure you have the necessary libraries installed:
+```bash
+pip install langchain openai anthropic autogen sentence-transformers numpy
+```
+
+### Step 2: Load and Embed Documents
+
+Use the SentenceTransformer to embed your documents:
+```python
+from sentence_transformers import SentenceTransformer
+import numpy as np
+
+model = SentenceTransformer("Alibaba-NLP/gte-base-en-v1.5")
+doc = "Your Docs, text, PDF etc."  # Replace with your actual documents
+paragraphs = doc.split('\n\n')
+docs_embed = model.encode(paragraphs, normalize_embeddings=True)
+```
+
+### Step 3: Embed the Query and Retrieve Similar Documents
+
+Embed the user query and find the most similar documents:
+```python
+query = "Your query"
+query_embed = model.encode(query, normalize_embeddings=True)
+similarities = np.dot(docs_embed, query_embed.T)
+top_3_idx = np.argsort(similarities, axis=0)[-3:][::-1].tolist()
+most_similar_documents = [paragraphs[idx] for idx in top_3_idx]
+```
+
+### Step 4: Create and Configure the LangChain Agent
+
+Define and configure your LangChain agent to use custom tools and integrate it with OpenAI:
+```python
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.llms import OpenAI
+from langchain.agents import AgentExecutor, format_to_openai_tool_messages, OpenAIToolsAgentOutputParser
+
+openai_model = OpenAI(api_key="your_openai_api_key")
+
+prompt = ChatPromptTemplate.from_messages([
+    ("system", "You are a powerful assistant, but don't know current events."),
+    ("user", "{input}"),
+    MessagesPlaceholder(variable_name="agent_scratchpad"),
+])
+
+tools = [...]  # Define your custom tools here
+
+llm_with_tools = openai_model.bind_tools(tools)
+
+agent = {
+    "input": lambda x: x["input"],
+    "agent_scratchpad": lambda x: format_to_openai_tool_messages(x["intermediate_steps"]),
+} | prompt | llm_with_tools | OpenAIToolsAgentOutputParser()
+
+agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True)
+```
+
+### Step 5: Execute the Query and Get Responses
+
+Use the agent to process the query and retrieve augmented responses:
+```python
+input_query = "Your specific query"
+result = agent_executor.invoke({"input": input_query})
+print(result)
+```
+
+### Step 6: Store and Use Responses for Future Queries
+
+Implement a storage mechanism to save responses and use them for improving future queries:
+```python
+import json
+
+def store_response(query, response):
+    with open("responses.json", "a") as f:
+        json.dump({"query": query, "response": response}, f)
+        f.write("\n")
+
+def retrieve_responses():
+    responses = []
+    with open("responses.json", "r") as f:
+        for line in f:
+            responses.append(json.loads(line))
+    return responses
+
+store_response(input_query, result)
+past_responses = retrieve_responses()
+```
+
+### Step 7: Integrate with AutoGen for Advanced Features
+
+Integrate with AutoGen to manage complex workflows and model configurations:
+```python
+import autogen
+
+config_list = autogen.config_list_from_json(env_or_file="OAI_CONFIG_LIST")
+assistant = autogen.AssistantAgent(name="assistant", llm_config={"config_list": config_list})
+
+# Define and register custom tools with AutoGen
+class CustomTool:
+    name = "YourToolName"
+    description = "Describe your tool's functionality"
+
+    def _run(self, input_data):
+        # Implement the tool's logic
+        pass
+
+tools = [CustomTool()]
+assistant.register_tools(tools)
+
+# Execute a complex query using AutoGen
+complex_query = "Your complex query"
+complex_result = assistant.invoke({"input": complex_query})
+print(complex_result)
+```
+
+### Conclusion
+
+By following these steps, you can build a robust AI application that leverages LangChain, AutoGen, and the RAG method to provide enhanced query responses and store them for improving future interactions. This setup ensures a scalable solution that can handle complex tasks and utilize multiple LLMs effectively. For more advanced configurations and detailed examples, refer to the [LangChain documentation](https://python.langchain.com) and [AutoGen documentation](https://microsoft.github.io/autogen) [oai_citation:1,LLM Configuration | AutoGen](https://microsoft.github.io/autogen/docs/topics/llm_configuration/) [oai_citation:2,Building Custom Tools for LLM Agents | Pinecone](https://www.pinecone.io/learn/series/langchain/langchain-tools/) [oai_citation:3,Custom LLM Agent | ️ Langchain](https://js.langchain.com/v0.1/docs/modules/agents/how_to/custom_llm_agent/) [oai_citation:4,Custom agent | ️ LangChain](https://python.langchain.com/v0.1/docs/modules/agents/how_to/custom_agent/) [oai_citation:5,Tool Use | AutoGen](https://microsoft.github.io/autogen/docs/tutorial/tool-use/).
+
+---
+
+How could we save the custom tools that are successful as stateless feature functions that we can build use and reuse ♻️ 
+
+---
+
+To create reusable and stateless custom tools in LangChain and AutoGen, you can follow a structured approach to define, register, and store these tools as feature functions. These functions can then be reused across different AI applications and workflows. Here's how you can achieve this:
+
+### Step 1: Define Custom Tools
+
+Create custom tools as stateless functions that can be reused. These tools should be designed to accept input parameters and return results without maintaining any internal state.
+
+#### Example: Define a Calculator Tool
+
+```python
+from typing import Optional, Union
+from math import sqrt, cos, sin
+
+class CalculatorTool:
+    @staticmethod
+    def calculate_hypotenuse(adjacent_side: Optional[Union[int, float]] = None,
+                             opposite_side: Optional[Union[int, float]] = None,
+                             angle: Optional[Union[int, float]] = None) -> Union[float, str]:
+        if adjacent_side and opposite_side:
+            return sqrt(float(adjacent_side)**2 + float(opposite_side)**2)
+        elif adjacent_side and angle:
+            return adjacent_side / cos(float(angle))
+        elif opposite_side and angle:
+            return opposite_side / sin(float(angle))
+        else:
+            return "Could not calculate the hypotenuse. Need two or more parameters."
+```
+
+### Step 2: Register Tools with LangChain and AutoGen
+
+Register the custom tools with your LangChain agent and AutoGen assistant to ensure they can be invoked during execution.
+
+#### LangChain Registration
+
+```python
+from langchain_core.tools import BaseTool
+
+class HypotenuseCalculatorTool(BaseTool):
+    name = "HypotenuseCalculator"
+    description = "Calculate the hypotenuse given two sides of a triangle and/or an angle."
+
+    def _run(self, adjacent_side: Optional[Union[int, float]] = None,
+                   opposite_side: Optional[Union[int, float]] = None,
+                   angle: Optional[Union[int, float]] = None):
+        return CalculatorTool.calculate_hypotenuse(adjacent_side, opposite_side, angle)
+
+tools = [HypotenuseCalculatorTool()]
+```
+
+#### AutoGen Registration
+
+```python
+import autogen
+
+class CalculatorInput(BaseModel):
+    adjacent_side: Optional[float] = Field(None, description="Length of the adjacent side")
+    opposite_side: Optional[float] = Field(None, description="Length of the opposite side")
+    angle: Optional[float] = Field(None, description="Angle in degrees")
+
+def calculate_hypotenuse(input: CalculatorInput) -> Union[float, str]:
+    return CalculatorTool.calculate_hypotenuse(input.adjacent_side, input.opposite_side, input.angle)
+
+assistant.register_for_llm(name="HypotenuseCalculator", description="Calculate the hypotenuse given two sides of a triangle and/or an angle.")(calculate_hypotenuse)
+```
+
+### Step 3: Store Tools for Reuse
+
+Store the definitions of these tools in a separate module or package, allowing them to be imported and used across different projects.
+
+#### Example: Store Tools in a Module
+
+Create a Python module, `tools.py`, to store your custom tools:
+```python
+# tools.py
+from typing import Optional, Union
+from math import sqrt, cos, sin
+
+class CalculatorTool:
+    @staticmethod
+    def calculate_hypotenuse(adjacent_side: Optional[Union[int, float]] = None,
+                             opposite_side: Optional[Union[int, float]] = None,
+                             angle: Optional[Union[int, float]] = None) -> Union[float, str]:
+        if adjacent_side and opposite_side:
+            return sqrt(float(adjacent_side)**2 + float(opposite_side)**2)
+        elif adjacent_side and angle:
+            return adjacent_side / cos(float(angle))
+        elif opposite_side and angle:
+            return opposite_side / sin(float(angle))
+        else:
+            return "Could not calculate the hypotenuse. Need two or more parameters."
+```
+
+### Step 4: Use and Reuse Tools
+
+Import and register these tools in any new or existing project to ensure they can be reused across different workflows.
+
+#### Example: Reuse Tools in a New Project
+
+```python
+# main.py
+from tools import CalculatorTool
+
+# Register with LangChain
+class HypotenuseCalculatorTool(BaseTool):
+    name = "HypotenuseCalculator"
+    description = "Calculate the hypotenuse given two sides of a triangle and/or an angle."
+
+    def _run(self, adjacent_side: Optional[Union[int, float]] = None,
+                   opposite_side: Optional[Union[int, float]] = None,
+                   angle: Optional[Union[int, float]] = None):
+        return CalculatorTool.calculate_hypotenuse(adjacent_side, opposite_side, angle)
+
+tools = [HypotenuseCalculatorTool()]
+
+# Register with AutoGen
+from pydantic import BaseModel, Field
+
+class CalculatorInput(BaseModel):
+    adjacent_side: Optional[float] = Field(None, description="Length of the adjacent side")
+    opposite_side: Optional[float] = Field(None, description="Length of the opposite side")
+    angle: Optional[float] = Field(None, description="Angle in degrees")
+
+def calculate_hypotenuse(input: CalculatorInput) -> Union[float, str]:
+    return CalculatorTool.calculate_hypotenuse(input.adjacent_side, input.opposite_side, input.angle)
+
+assistant.register_for_llm(name="HypotenuseCalculator", description="Calculate the hypotenuse given two sides of a triangle and/or an angle.")(calculate_hypotenuse)
+```
+
+### Conclusion
+
+By defining custom tools as stateless functions, registering them with LangChain and AutoGen, and storing them in a reusable module, you can create a library of reusable components. This approach ensures that your tools can be easily reused across different projects, enhancing the scalability and maintainability of your AI applications.
+
+---
+
+Search the web to learn more about:
+
+- OpenAI api calls with gpt4o
+- langchain and passing variables to LLMs via prompts
+- writing all of this as more idiomatic code using lcel
+
+---
+
+To integrate custom tools and leverage multiple LLMs such as GPT-4o and Claude using LangChain and AutoGen, and to save these tools as reusable functions, follow the steps below:
+
+### 1. Setting Up and Using OpenAI API with GPT-4o
+
+**GPT-4o** is OpenAI's latest model, designed to handle text, image, and vision tasks with higher efficiency and lower costs than previous models. It supports text input/output and has advanced vision capabilities. Here’s how you can set up and use GPT-4o with OpenAI API:
+
+#### Example of a Text Completion Call:
+```python
+import openai
+
+openai.api_key = 'your_openai_api_key'
+
+response = openai.ChatCompletion.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant."},
+        {"role": "user", "content": "Can you summarize the following text? [Insert your text here]"}
+    ],
+    temperature=0.5
+)
+
+print(response.choices[0].message['content'])
+```
+
+#### Example of an Image Analysis Call:
+```python
+import base64
+
+def encode_image(image_path):
+    with open(image_path, "rb") as image_file:
+        return base64.b64encode(image_file.read()).decode("utf-8")
+
+image_path = "path/to/your/image.jpg"
+encoded_image = encode_image(image_path)
+
+response = openai.ChatCompletion.create(
+    model="gpt-4o",
+    messages=[
+        {"role": "system", "content": "You are a helpful assistant that responds in Markdown."},
+        {"role": "user", "content": "Analyze the image and provide insights."},
+        {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{encoded_image}"}}
+    ],
+    temperature=0.5
+)
+
+print(response.choices[0].message['content'])
+```
+
+### 2. Passing Variables to LLMs via Prompts in LangChain
+
+LangChain allows you to create dynamic prompts where variables can be passed to LLMs. This enables more flexible and context-aware responses.
+
+#### Example of Passing Variables:
+```python
+from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.llms import OpenAI
+
+llm = OpenAI(api_key="your_openai_api_key", model="gpt-4o")
+
+prompt_template = ChatPromptTemplate.from_template(
+    template="Summarize the following: {text}",
+    input_variables=["text"]
+)
+
+response = prompt_template.format(text="Your document text here")
+print(response)
+```
+
+### 3. Writing Idiomatic Code using LCEL
+
+LangChain Expression Language (LCEL) provides a declarative way to compose complex chains and workflows. Here’s how to integrate these concepts into a streamlined process.
+
+#### Example of Using LCEL:
+```python
+from langchain import Pipeline
+from langchain.prompts import ChatPromptTemplate
+from langchain.llms import OpenAI
+
+# Define LLM and tools
+llm = OpenAI(api_key="your_openai_api_key", model="gpt-4o")
+
+# Create prompt template
+prompt_template = ChatPromptTemplate.from_template("Summarize the following text: {text}")
+
+# Define the LCEL pipeline
+pipeline = Pipeline([
+    {"input": lambda x: x["text"], "output": "summarized_text"},
+    prompt_template | llm
+])
+
+# Run the pipeline
+result = pipeline.invoke({"text": "Your document text here"})
+print(result["summarized_text"])
+```
+
+### 4. Creating Reusable Stateless Feature Functions
+
+To save successful tools as reusable functions, you can create a module that defines these tools, ensuring they remain stateless and easy to reuse.
+
+#### Example of Saving a Tool:
+```python
+# tools.py
+def calculate_hypotenuse(adjacent_side, opposite_side):
+    from math import sqrt
+    return sqrt(adjacent_side**2 + opposite_side**2)
+
+def summarize_text(text, llm):
+    prompt = f"Summarize the following text: {text}"
+    response = llm.create_completion(prompt)
+    return response.choices[0].text
+
+# main.py
+from tools import calculate_hypotenuse, summarize_text
+from openai import OpenAI
+
+llm = OpenAI(api_key="your_openai_api_key", model="gpt-4o")
+
+# Using the tools
+hypotenuse = calculate_hypotenuse(3, 4)
+summary = summarize_text("Your document text here", llm)
+
+print(f"Hypotenuse: {hypotenuse}")
+print(f"Summary: {summary}")
+```
+
+By following these steps, you can create a powerful, flexible, and scalable AI application that utilizes custom tools, integrates multiple LLMs, and employs the RAG method to enhance functionality and results. This approach ensures your tools are reusable and maintainable across different projects.
+
+For more details on OpenAI API with GPT-4o, visit the [OpenAI documentation](https://platform.openai.com/docs/models/flagship-models) [oai_citation:1,How can I access GPT-4, GPT-4 Turbo and GPT-4o? | OpenAI Help Center](https://help.openai.com/en/articles/7102672-how-can-i-access-gpt-4-gpt-4-turbo-and-gpt-4o). For integrating tools and passing variables in LangChain, refer to the [LangChain documentation](https://python.langchain.com) [oai_citation:2,Announcing GPT-4o in the API! - Announcements - OpenAI Developer Forum](https://community.openai.com/t/announcing-gpt-4o-in-the-api/744700) [oai_citation:3,GPT-4o API Tutorial: Getting Started with OpenAI's API | DataCamp](https://www.datacamp.com/tutorial/gpt4o-api-openai-tutorial).
